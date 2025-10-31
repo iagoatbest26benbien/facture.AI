@@ -1,0 +1,224 @@
+﻿"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import dynamic from "next/dynamic";
+const InvoicePreviewClient = dynamic(() => import("@/components/pdf/InvoicePreviewClient"), { ssr: false });
+import type { InvoiceFormValues } from "@/types";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+
+const defaultItem = { description: "", enhancedDescription: "", quantity: 1, unitPrice: 0, vatRate: 0 as 0 | 10 | 20 };
+
+export default function InvoiceForm() {
+  const router = useRouter();
+  const [clients, setClients] = useState<{ id: string; name: string; email?: string; address?: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [values, setValues] = useState<InvoiceFormValues>({
+    clientId: undefined,
+    clientName: "",
+    clientEmail: "",
+    clientAddress: "",
+    clientSiret: "",
+    invoiceNumber: `FAC-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
+    invoiceDate: new Date().toISOString().slice(0, 10),
+    dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10),
+    items: [defaultItem],
+    totalHT: 0,
+    totalVAT: 0,
+    totalTTC: 0,
+    legalMentions: "TVA non applicable, art. 293 B du CGI",
+    paymentTerms: "Paiement à 30 jours",
+    lateFees: "Pénalité 3x taux légal + 40€",
+  });
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/clients", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } });
+      const d = await res.json().catch(() => ({}));
+      setClients(d.clients ?? []);
+    };
+    load().catch(() => setClients([]));
+  }, []);
+
+  const totals = useMemo(() => {
+    const totalHT = values.items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0);
+    const totalVAT = values.items.reduce((sum, it) => sum + (it.quantity * it.unitPrice * it.vatRate) / 100, 0);
+    const totalTTC = totalHT + totalVAT;
+    return { totalHT, totalVAT, totalTTC };
+  }, [values.items]);
+
+  useEffect(() => {
+    setValues((v) => ({ ...v, ...totals }));
+  }, [totals.totalHT, totals.totalVAT, totals.totalTTC]);
+
+  async function enhance(idx: number) {
+    const item = values.items[idx];
+    if (!item.description) return toast.error("Ajoutez une description d'abord");
+    const res = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: item.description, profession: "auto-entrepreneur" }) });
+    let data: any = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok) return toast.error(data?.error ?? `Erreur IA (${res.status})`);
+    const enhanced = String(data.text ?? "");
+    setValues((v) => ({
+      ...v,
+      items: v.items.map((it, i) => (i === idx ? { ...it, description: enhanced, enhancedDescription: enhanced } : it)),
+    }));
+  }
+
+  function updateItem(idx: number, patch: Partial<typeof defaultItem>) {
+    setValues((v) => ({ ...v, items: v.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
+  }
+
+  function addItem() {
+    setValues((v) => ({ ...v, items: [...v.items, { ...defaultItem }] }));
+  }
+
+  function removeItem(idx: number) {
+    setValues((v) => ({ ...v, items: v.items.filter((_, i) => i !== idx) }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const supabase = createBrowserSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" },
+      body: JSON.stringify(values),
+    });
+    let data: any = {};
+    try { data = await res.json(); } catch {}
+    setLoading(false);
+    if (!res.ok) return toast.error(data.error ?? "Erreur lors de la création");
+    toast.success("Facture créée");
+    router.push(`/invoices/${data.id}`);
+  }
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Card className="p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Client</Label>
+              <Select onValueChange={(v) => {
+                const c = clients.find((x) => x.id === v);
+                setValues((val) => ({ ...val, clientId: v, clientName: c?.name ?? "", clientEmail: c?.email ?? "", clientAddress: c?.address ?? "" }));
+              }}>
+                <SelectTrigger><SelectValue placeholder="Sélectionner un client" /></SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Numéro de facture</Label>
+              <Input value={values.invoiceNumber} onChange={(e) => setValues({ ...values, invoiceNumber: e.target.value })} />
+            </div>
+            <div>
+              <Label>Date</Label>
+              <Input type="date" value={values.invoiceDate} onChange={(e) => setValues({ ...values, invoiceDate: e.target.value })} />
+            </div>
+            <div>
+              <Label>Échéance</Label>
+              <Input type="date" value={values.dueDate} onChange={(e) => setValues({ ...values, dueDate: e.target.value })} />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">Lignes</h3>
+            <Button type="button" onClick={addItem}>Ajouter une ligne</Button>
+          </div>
+          <div className="space-y-4">
+            {values.items.map((it, idx) => (
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                <div className="md:col-span-3">
+                  <Label>Description</Label>
+                  <Input value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} placeholder="Ex: Création de site web" />
+                  <div className="mt-2 flex gap-2">
+                    <Button type="button" variant="secondary" onClick={() => enhance(idx)}>Améliorer avec l'IA</Button>
+                    {it.enhancedDescription ? <span className="text-xs text-green-600">OK</span> : null}
+                  </div>
+                </div>
+                <div>
+                  <Label>Qté</Label>
+                  <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <Label>PU (€)</Label>
+                  <Input type="number" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                </div>
+                <div>
+                  <Label>TVA</Label>
+                  <Select value={String(it.vatRate)} onValueChange={(v) => updateItem(idx, { vatRate: Number(v) as 0 | 10 | 20 })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0%</SelectItem>
+                      <SelectItem value="10">10%</SelectItem>
+                      <SelectItem value="20">20%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-right font-medium md:col-span-1">{(it.quantity * it.unitPrice).toFixed(2)} €</div>
+                <div className="md:col-span-6">
+                  {values.items.length > 1 && (
+                    <Button type="button" variant="secondary" onClick={() => removeItem(idx)}>Supprimer</Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <Label>Mentions légales</Label>
+            <Input value={values.legalMentions} onChange={(e) => setValues({ ...values, legalMentions: e.target.value })} />
+          </div>
+          <div>
+            <Label>Conditions de paiement</Label>
+            <Input value={values.paymentTerms} onChange={(e) => setValues({ ...values, paymentTerms: e.target.value })} />
+          </div>
+          <div>
+            <Label>Frais de retard</Label>
+            <Input value={values.lateFees} onChange={(e) => setValues({ ...values, lateFees: e.target.value })} />
+          </div>
+        </Card>
+
+        <div className="flex items-center justify-end gap-4">
+          <div className="text-sm text-slate-600">
+            <div>Total HT: <span className="font-medium">{values.totalHT.toFixed(2)} €</span></div>
+            <div>TVA: <span className="font-medium">{values.totalVAT.toFixed(2)} €</span></div>
+            <div>Total TTC: <span className="font-semibold">{values.totalTTC.toFixed(2)} €</span></div>
+          </div>
+          <Button disabled={loading}>{loading ? "Création..." : "Créer la facture"}</Button>
+        </div>
+      </form>
+
+      <Card className="p-2 h-[80dvh]">
+        <Tabs defaultValue="preview">
+          <TabsList>
+            <TabsTrigger value="preview">Aperçu PDF</TabsTrigger>
+          </TabsList>
+          <TabsContent value="preview" className="h-[75dvh]">
+            <InvoicePreviewClient data={values} />
+          </TabsContent>
+        </Tabs>
+      </Card>
+    </div>
+  );
+}
