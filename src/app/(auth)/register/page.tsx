@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getSiteUrl } from "@/lib/url";
 
 export default function RegisterPage() {
   const supabase = createBrowserSupabaseClient();
@@ -20,7 +21,7 @@ export default function RegisterPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: getSiteUrl() } });
     if (error) {
       setLoading(false);
       return toast.error(error.message);

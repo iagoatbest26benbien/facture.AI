@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { withSiteUrl } from "@/lib/url";
 
 export default function ForgotPage() {
   const supabase = createBrowserSupabaseClient();
@@ -15,7 +16,7 @@ export default function ForgotPage() {
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: withSiteUrl("/login") });
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Email envoyé si l'adresse existe.");

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { getSiteUrl } from "@/lib/url";
 
 function LoginContent() {
   const supabase = createBrowserSupabaseClient();
@@ -31,7 +32,7 @@ function LoginContent() {
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: getSiteUrl() } });
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Magic link envoyé. Consultez votre boîte mail.");
