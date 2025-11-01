@@ -373,9 +373,12 @@ export default function InvoiceForm() {
 
       <Card className="p-2 h-[80dvh]">
         <Tabs defaultValue="preview">
-          <TabsList>
-            <TabsTrigger value="preview">Aperçu PDF</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between px-2 pb-2">
+            <TabsList>
+              <TabsTrigger value="preview">Aperçu PDF</TabsTrigger>
+            </TabsList>
+            <a href="/templates/studio" target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Personnaliser le template</a>
+          </div>
           <TabsContent value="preview" className="h-[75dvh]">
             <InvoicePreviewClient data={values} template={templateJson} />
           </TabsContent>

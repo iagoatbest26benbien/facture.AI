@@ -6,6 +6,8 @@ const nav = [
   { href: "/invoices", label: "Factures" },
   { href: "/clients", label: "Clients" },
   { href: "/settings", label: "Paramètres" },
+  { href: "/templates/studio", label: "Studio" },
+  { href: "/templates/editor", label: "Éditeur JSON" },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
