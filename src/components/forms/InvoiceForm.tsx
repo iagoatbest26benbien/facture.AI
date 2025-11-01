@@ -34,7 +34,11 @@ export default function InvoiceForm() {
     clientEmail: "",
     clientAddress: "",
     clientSiret: "",
-    invoiceNumber: `FAC-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`,
+    invoiceNumber: (() => {
+      const now = new Date();
+      const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+      return `FAC-${yyyymm}-001`;
+    })(),
     invoiceDate: new Date().toISOString().slice(0, 10),
     dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().slice(0, 10),
     items: [defaultItem],

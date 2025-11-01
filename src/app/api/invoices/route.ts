@@ -54,15 +54,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Limite atteinte: 3 factures / mois en gratuit" }, { status: 402 });
   }
 
-  // Generate invoice number FAC-YYYY-XXX
-  const year = new Date().getFullYear();
-  const { count: yearCount } = await admin
+  // Generate invoice number FAC-YYYYMM-XXX (count resets each month)
+  const baseDateStr: string = (body?.invoiceDate && String(body.invoiceDate).slice(0,10)) || new Date().toISOString().slice(0,10);
+  const base = new Date(`${baseDateStr}T00:00:00`);
+  const monthKey = `${base.getFullYear()}${String(base.getMonth() + 1).padStart(2, "0")}`;
+  const monthStart = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthEndDate = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  const monthEnd = `${monthEndDate.getFullYear()}-${String(monthEndDate.getMonth() + 1).padStart(2, "0")}-${String(monthEndDate.getDate()).padStart(2, "0")}`;
+  const { count: monthCount } = await admin
     .from("invoices")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .gte("invoice_date", `${year}-01-01`)
-    .lte("invoice_date", `${year}-12-31`);
-  const invoiceNumber = body?.invoiceNumber || `FAC-${year}-${pad((yearCount ?? 0) + 1)}`;
+    .gte("invoice_date", monthStart)
+    .lte("invoice_date", monthEnd);
+  const invoiceNumber = body?.invoiceNumber || `FAC-${monthKey}-${pad((monthCount ?? 0) + 1)}`;
 
   const items = Array.isArray(body.items) ? body.items : [];
   const totalHT = items.reduce((s: number, it: any) => s + Number(it.quantity) * Number(it.unitPrice), 0);
