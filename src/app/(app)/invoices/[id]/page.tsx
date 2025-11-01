@@ -27,7 +27,7 @@ export default function InvoiceDetailPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{invoice?.invoice_number}</h1>
-        {id ? <DownloadPdfButton invoiceId={id} /> : null}
+        {invoice && id ? <DownloadPdfButton invoiceId={id} invoiceNumber={(invoice as any).invoice_number} /> : null}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
