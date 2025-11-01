@@ -20,9 +20,9 @@ export function InvoiceTemplate({ data }: { data: InvoiceFormValues }) {
         <View style={styles.row}>
           <View style={styles.col}>
             <Text>De :</Text>
-            <Text>{data.clientName}</Text>
-            <Text>{data.clientAddress}</Text>
-            <Text>{data.clientEmail}</Text>
+            <Text>{data.issuerName || ""}</Text>
+            <Text>{data.issuerAddress || ""}</Text>
+            <Text>{data.issuerEmail || ""}</Text>
           </View>
           <View style={styles.col}>
             <Text>À :</Text>

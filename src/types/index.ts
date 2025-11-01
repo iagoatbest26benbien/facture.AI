@@ -9,6 +9,13 @@ export interface InvoiceItem {
 }
 
 export interface InvoiceFormValues {
+  // Issuer (sender)
+  issuerType?: "profile" | "custom";
+  issuerName?: string;
+  issuerEmail?: string;
+  issuerAddress?: string;
+  issuerSiret?: string;
+
   // Client
   clientId?: string;
   clientName: string;

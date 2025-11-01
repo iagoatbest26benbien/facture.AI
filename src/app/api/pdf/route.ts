@@ -22,12 +22,24 @@ export async function POST(req: Request) {
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Load issuer (profile) to populate "De" section in the PDF
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("company_name, email, address, siret")
+      .eq("id", user.id)
+      .single();
+
     const { data: items } = await admin
       .from("invoice_items")
       .select("description, enhanced_description, quantity, unit_price, vat_rate")
       .eq("invoice_id", invoiceId);
 
     const data = {
+      issuerType: "profile" as const,
+      issuerName: profile?.company_name ?? "",
+      issuerEmail: profile?.email ?? "",
+      issuerAddress: profile?.address ?? "",
+      issuerSiret: profile?.siret ?? "",
       clientId: invoice.client_id,
       clientName: (invoice as any).clients?.name ?? "",
       clientEmail: (invoice as any).clients?.email ?? "",

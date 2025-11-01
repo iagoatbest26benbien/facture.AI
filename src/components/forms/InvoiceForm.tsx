@@ -21,6 +21,11 @@ export default function InvoiceForm() {
   const [clients, setClients] = useState<{ id: string; name: string; email?: string; address?: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [values, setValues] = useState<InvoiceFormValues>({
+    issuerType: "profile",
+    issuerName: "",
+    issuerEmail: "",
+    issuerAddress: "",
+    issuerSiret: "",
     clientId: undefined,
     clientName: "",
     clientEmail: "",
@@ -42,9 +47,24 @@ export default function InvoiceForm() {
     const load = async () => {
       const supabase = createBrowserSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/clients", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } });
-      const d = await res.json().catch(() => ({}));
-      setClients(d.clients ?? []);
+      // Load clients
+      const [clientsRes, meRes] = await Promise.all([
+        fetch("/api/clients", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } }),
+        fetch("/api/me", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } }),
+      ]);
+      const clientsData = await clientsRes.json().catch(() => ({}));
+      setClients(clientsData.clients ?? []);
+      // Prefill issuer from profile
+      const meData = await meRes.json().catch(() => ({}));
+      if (meData?.profile) {
+        setValues((v) => ({
+          ...v,
+          issuerName: meData.profile.company_name ?? "",
+          issuerEmail: meData.profile.email ?? "",
+          issuerAddress: meData.profile.address ?? "",
+          issuerSiret: meData.profile.siret ?? "",
+        }));
+      }
     };
     load().catch(() => setClients([]));
   }, []);
@@ -109,6 +129,55 @@ export default function InvoiceForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <Card className="p-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <Label>Émetteur</Label>
+              <Tabs defaultValue={values.issuerType} onValueChange={(v) => setValues({ ...values, issuerType: v as any })} className="mt-1">
+                <TabsList>
+                  <TabsTrigger value="profile">Mon entreprise</TabsTrigger>
+                  <TabsTrigger value="custom">Personnalisé</TabsTrigger>
+                </TabsList>
+                <TabsContent value="profile" className="mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label>Nom</Label>
+                      <Input value={values.issuerName} onChange={(e) => setValues({ ...values, issuerName: e.target.value })} disabled />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input value={values.issuerEmail} onChange={(e) => setValues({ ...values, issuerEmail: e.target.value })} disabled />
+                    </div>
+                    <div>
+                      <Label>SIRET</Label>
+                      <Input value={values.issuerSiret ?? ""} onChange={(e) => setValues({ ...values, issuerSiret: e.target.value })} disabled />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Label>Adresse</Label>
+                      <Input value={values.issuerAddress} onChange={(e) => setValues({ ...values, issuerAddress: e.target.value })} disabled />
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="custom" className="mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label>Nom</Label>
+                      <Input value={values.issuerName} onChange={(e) => setValues({ ...values, issuerName: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input value={values.issuerEmail} onChange={(e) => setValues({ ...values, issuerEmail: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>SIRET</Label>
+                      <Input value={values.issuerSiret ?? ""} onChange={(e) => setValues({ ...values, issuerSiret: e.target.value })} />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Label>Adresse</Label>
+                      <Input value={values.issuerAddress} onChange={(e) => setValues({ ...values, issuerAddress: e.target.value })} />
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
             <div>
               <Label>Client</Label>
               <Select onValueChange={(v) => {
