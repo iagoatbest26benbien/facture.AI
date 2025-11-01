@@ -10,7 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
-const InvoicePreviewClient = dynamic(() => import("@/components/pdf/InvoicePreviewClient"), { ssr: false });
+import type { InvoiceTemplateJSON } from "@/types";
+const InvoicePreviewClient = dynamic<{ data: InvoiceFormValues; template?: InvoiceTemplateJSON }>(
+  () => import("@/components/pdf/InvoicePreviewClient"),
+  { ssr: false }
+);
 import type { InvoiceFormValues } from "@/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
