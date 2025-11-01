@@ -240,52 +240,7 @@ export default function InvoiceForm() {
               <Input type="date" value={values.dueDate} onChange={(e) => setValues({ ...values, dueDate: e.target.value })} />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Brief IA</Label>
-            <textarea className="w-full border rounded-md p-2 min-h-[96px]" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Ex: Faire une facture pour mon client ACME pour création de site vitrine 3 pages, 2 jours à 350€ / jour, TVA 20%, échéance 30 jours..." />
-            <div>
-              <Button type="button" disabled={aiLoading || !aiPrompt.trim()} onClick={async () => {
-                try {
-                  setAiLoading(true);
-                  const supabase = createBrowserSupabaseClient();
-                  const { data: { session } } = await supabase.auth.getSession();
-                  const res = await fetch("/api/ai/invoice-draft", { method: "POST", headers: { "Content-Type": "application/json", Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" }, body: JSON.stringify({ prompt: aiPrompt }) });
-                  setAiLoading(false);
-                  if (!res.ok) {
-                    let d: any = {}; try { d = await res.json(); } catch {}
-                    return toast.error(d?.error ?? `Erreur IA (${res.status})`);
-                  }
-                  const { draft } = await res.json();
-                  const items = Array.isArray(draft?.items) && draft.items.length > 0 ? draft.items.map((it: any) => ({
-                    description: String(it.description || ""),
-                    enhancedDescription: String(it.description || ""),
-                    quantity: Math.max(1, Number(it.quantity || 1)),
-                    unitPrice: Math.max(0, Number(it.unitPrice || 0)),
-                    vatRate: (Number(it.vatRate || 0) as 0 | 10 | 20),
-                  })) : values.items;
-                  const maybeClientName = draft?.client?.name ? String(draft.client.name) : "";
-                  const found = clients.find((c) => c.name.toLowerCase() === maybeClientName.toLowerCase());
-                  setValues((v) => ({
-                    ...v,
-                    clientType: found ? "select" : "custom",
-                    clientId: found ? found.id : undefined,
-                    clientName: found ? found.name : (draft?.client?.name ?? v.clientName),
-                    clientEmail: found ? (found.email ?? "") : (draft?.client?.email ?? v.clientEmail),
-                    clientAddress: found ? (found.address ?? "") : (draft?.client?.address ?? v.clientAddress),
-                    invoiceDate: draft?.invoiceDate ? String(draft.invoiceDate).slice(0,10) : v.invoiceDate,
-                    dueDate: draft?.dueDate ? String(draft.dueDate).slice(0,10) : v.dueDate,
-                    paymentTerms: draft?.paymentTerms ?? v.paymentTerms,
-                    legalMentions: draft?.legalMentions ?? v.legalMentions,
-                    items,
-                  }));
-                  toast.success("Formulaire pré-rempli par l'IA");
-                } catch (e: any) {
-                  setAiLoading(false);
-                  toast.error(e?.message ?? "Erreur IA");
-                }
-              }}>{aiLoading ? "Génération..." : "Pré-remplir avec l'IA"}</Button>
-            </div>
-          </div>
+          {null}
         </Card>
 
         <Card className="p-4 space-y-3">
@@ -294,6 +249,52 @@ export default function InvoiceForm() {
             <Button type="button" onClick={addItem}>Ajouter une ligne</Button>
           </div>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Brief IA</Label>
+              <textarea className="w-full border rounded-md p-2 min-h-[96px]" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Ex: Faire une facture pour mon client ACME pour création de site vitrine 3 pages, 2 jours à 350€ / jour, TVA 20%, échéance 30 jours..." />
+              <div>
+                <Button type="button" disabled={aiLoading || !aiPrompt.trim()} onClick={async () => {
+                  try {
+                    setAiLoading(true);
+                    const supabase = createBrowserSupabaseClient();
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const res = await fetch("/api/ai/invoice-draft", { method: "POST", headers: { "Content-Type": "application/json", Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" }, body: JSON.stringify({ prompt: aiPrompt }) });
+                    setAiLoading(false);
+                    if (!res.ok) {
+                      let d: any = {}; try { d = await res.json(); } catch {}
+                      return toast.error(d?.error ?? `Erreur IA (${res.status})`);
+                    }
+                    const { draft } = await res.json();
+                    const items = Array.isArray(draft?.items) && draft.items.length > 0 ? draft.items.map((it: any) => ({
+                      description: String(it.description || ""),
+                      enhancedDescription: String(it.description || ""),
+                      quantity: Math.max(1, Number(it.quantity || 1)),
+                      unitPrice: Math.max(0, Number(it.unitPrice || 0)),
+                      vatRate: (Number(it.vatRate || 0) as 0 | 10 | 20),
+                    })) : values.items;
+                    const maybeClientName = draft?.client?.name ? String(draft.client.name) : "";
+                    const found = clients.find((c) => c.name.toLowerCase() === maybeClientName.toLowerCase());
+                    setValues((v) => ({
+                      ...v,
+                      clientType: found ? "select" : "custom",
+                      clientId: found ? found.id : undefined,
+                      clientName: found ? found.name : (draft?.client?.name ?? v.clientName),
+                      clientEmail: found ? (found.email ?? "") : (draft?.client?.email ?? v.clientEmail),
+                      clientAddress: found ? (found.address ?? "") : (draft?.client?.address ?? v.clientAddress),
+                      invoiceDate: draft?.invoiceDate ? String(draft.invoiceDate).slice(0,10) : v.invoiceDate,
+                      dueDate: draft?.dueDate ? String(draft.dueDate).slice(0,10) : v.dueDate,
+                      paymentTerms: draft?.paymentTerms ?? v.paymentTerms,
+                      legalMentions: draft?.legalMentions ?? v.legalMentions,
+                      items,
+                    }));
+                    toast.success("Formulaire pré-rempli par l'IA");
+                  } catch (e: any) {
+                    setAiLoading(false);
+                    toast.error(e?.message ?? "Erreur IA");
+                  }
+                }}>{aiLoading ? "Génération..." : "Pré-remplir avec l'IA"}</Button>
+              </div>
+            </div>
             {values.items.map((it, idx) => (
               <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
                 <div className="md:col-span-3">
