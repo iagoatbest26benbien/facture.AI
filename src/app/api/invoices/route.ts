@@ -86,6 +86,7 @@ export async function POST(req: Request) {
       total_ht: totalHT,
       total_vat: totalVAT,
       total_ttc: totalTTC,
+      template_id: body.templateId ?? null,
     })
     .select("id")
     .single();

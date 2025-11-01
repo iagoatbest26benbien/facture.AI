@@ -41,6 +41,9 @@ export interface InvoiceFormValues {
   legalMentions: string;
   paymentTerms: string;
   lateFees: string;
+
+  // Template (optional for Canva-like editor)
+  templateId?: string;
 }
 
 export interface Client {
@@ -67,5 +70,55 @@ export interface Invoice {
   total_vat: number;
   total_ttc: number;
   pdf_url?: string | null;
+  template_id?: string | null;
   created_at?: string;
+}
+
+// ===== Template DSL (P0 minimal) =====
+export type TemplateElementType = "text" | "image" | "rect" | "table";
+
+export interface TemplateBaseElement {
+  id: string;
+  type: TemplateElementType;
+  x: number; y: number; width?: number; height?: number; rotation?: number;
+  opacity?: number;
+}
+
+export interface TemplateTextElement extends TemplateBaseElement {
+  type: "text";
+  value: string; // may include {{bindings}}
+  fontFamily?: string; fontSize?: number; color?: string; align?: "left" | "center" | "right";
+  bold?: boolean; italic?: boolean;
+}
+
+export interface TemplateRectElement extends TemplateBaseElement {
+  type: "rect";
+  fill?: string; stroke?: string; strokeWidth?: number; radius?: number;
+}
+
+export interface TemplateImageElement extends TemplateBaseElement {
+  type: "image";
+  src: string; // url
+  objectFit?: "cover" | "contain";
+}
+
+export interface TemplateTableColumn {
+  key: string; // e.g. description | quantity | unitPrice | vatRate | total
+  title: string;
+  width?: number; // relative weight
+  align?: "left" | "center" | "right";
+}
+
+export interface TemplateTableElement extends TemplateBaseElement {
+  type: "table";
+  columns: TemplateTableColumn[];
+  showHeader?: boolean;
+}
+
+export type TemplateElement = TemplateTextElement | TemplateRectElement | TemplateImageElement | TemplateTableElement;
+
+export interface InvoiceTemplateJSON {
+  version: 1;
+  page: { width: number; height: number; padding?: number };
+  elements: TemplateElement[];
 }

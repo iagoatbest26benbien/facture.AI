@@ -1,5 +1,6 @@
 ﻿import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
-import type { InvoiceFormValues } from "@/types";
+import type { InvoiceFormValues, InvoiceTemplateJSON } from "@/types";
+import { TemplateDocument } from "@/components/pdf/TemplateRenderer";
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10 },
@@ -11,7 +12,10 @@ const styles = StyleSheet.create({
   cell: { padding: 6, flex: 1 },
 });
 
-export function InvoiceTemplate({ data }: { data: InvoiceFormValues }) {
+export function InvoiceTemplate({ data, template }: { data: InvoiceFormValues; template?: InvoiceTemplateJSON }) {
+  if (template) {
+    return <TemplateDocument data={data} template={template} />;
+  }
   const items = data.items ?? [];
   return (
     <Document>

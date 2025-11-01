@@ -22,6 +22,7 @@ export default function InvoiceForm() {
   const [loading, setLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [templateJson, setTemplateJson] = useState<any | undefined>(undefined);
   const [values, setValues] = useState<InvoiceFormValues>({
     issuerType: "profile",
     issuerName: "",
@@ -54,10 +55,11 @@ export default function InvoiceForm() {
     const load = async () => {
       const supabase = createBrowserSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      // Load clients
-      const [clientsRes, meRes] = await Promise.all([
+      // Load clients + me + template
+      const [clientsRes, meRes, tplRes] = await Promise.all([
         fetch("/api/clients", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } }),
         fetch("/api/me", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } }),
+        fetch("/api/templates/default", { headers: { Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" } }),
       ]);
       const clientsData = await clientsRes.json().catch(() => ({}));
       setClients(clientsData.clients ?? []);
@@ -71,6 +73,11 @@ export default function InvoiceForm() {
           issuerAddress: meData.profile.address ?? "",
           issuerSiret: meData.profile.siret ?? "",
         }));
+      }
+      const tplData = await tplRes.json().catch(() => ({}));
+      if (tplData?.template) {
+        setTemplateJson(tplData.template.json);
+        setValues((v) => ({ ...v, templateId: tplData.template.id }));
       }
     };
     load().catch(() => setClients([]));
@@ -366,7 +373,7 @@ export default function InvoiceForm() {
             <TabsTrigger value="preview">Aperçu PDF</TabsTrigger>
           </TabsList>
           <TabsContent value="preview" className="h-[75dvh]">
-            <InvoicePreviewClient data={values} />
+            <InvoicePreviewClient data={values} template={templateJson} />
           </TabsContent>
         </Tabs>
       </Card>

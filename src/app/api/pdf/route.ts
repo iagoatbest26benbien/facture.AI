@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const admin = createAdminSupabaseClient();
     const { data: invoice, error } = await admin
       .from("invoices")
-      .select("*, clients(name, email, address)")
+      .select("*, clients(name, email, address), invoice_templates(json)")
       .eq("id", invoiceId)
       .eq("user_id", user.id)
       .single();
@@ -62,8 +62,8 @@ export async function POST(req: Request) {
       lateFees: "Pénalité 3x taux légal + 40€",
     };
 
-    // Type cast to satisfy @react-pdf/renderer Document typing
-    const file = await pdf(React.createElement(InvoiceTemplate as unknown as React.ComponentType<any>, { data: data as any }) as any).toBuffer();
+    const template = (invoice as any).invoice_templates?.json ?? undefined;
+    const file = await pdf(React.createElement(InvoiceTemplate as unknown as React.ComponentType<any>, { data: data as any, template }) as any).toBuffer();
     return new NextResponse(file as any, { headers: { "Content-Type": "application/pdf" } });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Error" }, { status: 500 });
