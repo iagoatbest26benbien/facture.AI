@@ -17,6 +17,7 @@ export interface InvoiceFormValues {
   issuerSiret?: string;
 
   // Client
+  clientType?: "select" | "custom";
   clientId?: string;
   clientName: string;
   clientEmail: string;

@@ -20,12 +20,15 @@ export default function InvoiceForm() {
   const router = useRouter();
   const [clients, setClients] = useState<{ id: string; name: string; email?: string; address?: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [values, setValues] = useState<InvoiceFormValues>({
     issuerType: "profile",
     issuerName: "",
     issuerEmail: "",
     issuerAddress: "",
     issuerSiret: "",
+    clientType: "select",
     clientId: undefined,
     clientName: "",
     clientEmail: "",
@@ -178,19 +181,47 @@ export default function InvoiceForm() {
                 </TabsContent>
               </Tabs>
             </div>
-            <div>
+            <div className="md:col-span-2">
               <Label>Client</Label>
-              <Select onValueChange={(v) => {
-                const c = clients.find((x) => x.id === v);
-                setValues((val) => ({ ...val, clientId: v, clientName: c?.name ?? "", clientEmail: c?.email ?? "", clientAddress: c?.address ?? "" }));
-              }}>
-                <SelectTrigger><SelectValue placeholder="Sélectionner un client" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Tabs defaultValue={values.clientType} onValueChange={(v) => setValues({ ...values, clientType: v as any })} className="mt-1">
+                <TabsList>
+                  <TabsTrigger value="select">Mes clients</TabsTrigger>
+                  <TabsTrigger value="custom">Personnalisé</TabsTrigger>
+                </TabsList>
+                <TabsContent value="select" className="mt-3">
+                  <Select onValueChange={(v) => {
+                    const c = clients.find((x) => x.id === v);
+                    setValues((val) => ({ ...val, clientId: v, clientName: c?.name ?? "", clientEmail: c?.email ?? "", clientAddress: c?.address ?? "" }));
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Sélectionner un client" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TabsContent>
+                <TabsContent value="custom" className="mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label>Nom</Label>
+                      <Input value={values.clientName} onChange={(e) => setValues({ ...values, clientName: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input value={values.clientEmail} onChange={(e) => setValues({ ...values, clientEmail: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>SIRET</Label>
+                      <Input value={values.clientSiret ?? ""} onChange={(e) => setValues({ ...values, clientSiret: e.target.value })} />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Label>Adresse</Label>
+                      <Input value={values.clientAddress} onChange={(e) => setValues({ ...values, clientAddress: e.target.value })} />
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
             <div>
               <Label>Numéro de facture</Label>
@@ -203,6 +234,52 @@ export default function InvoiceForm() {
             <div>
               <Label>Échéance</Label>
               <Input type="date" value={values.dueDate} onChange={(e) => setValues({ ...values, dueDate: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Brief IA</Label>
+            <textarea className="w-full border rounded-md p-2 min-h-[96px]" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="Ex: Faire une facture pour mon client ACME pour création de site vitrine 3 pages, 2 jours à 350€ / jour, TVA 20%, échéance 30 jours..." />
+            <div>
+              <Button type="button" disabled={aiLoading || !aiPrompt.trim()} onClick={async () => {
+                try {
+                  setAiLoading(true);
+                  const supabase = createBrowserSupabaseClient();
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const res = await fetch("/api/ai/invoice-draft", { method: "POST", headers: { "Content-Type": "application/json", Authorization: session?.access_token ? `Bearer ${session.access_token}` : "" }, body: JSON.stringify({ prompt: aiPrompt }) });
+                  setAiLoading(false);
+                  if (!res.ok) {
+                    let d: any = {}; try { d = await res.json(); } catch {}
+                    return toast.error(d?.error ?? `Erreur IA (${res.status})`);
+                  }
+                  const { draft } = await res.json();
+                  const items = Array.isArray(draft?.items) && draft.items.length > 0 ? draft.items.map((it: any) => ({
+                    description: String(it.description || ""),
+                    enhancedDescription: String(it.description || ""),
+                    quantity: Math.max(1, Number(it.quantity || 1)),
+                    unitPrice: Math.max(0, Number(it.unitPrice || 0)),
+                    vatRate: (Number(it.vatRate || 0) as 0 | 10 | 20),
+                  })) : values.items;
+                  const maybeClientName = draft?.client?.name ? String(draft.client.name) : "";
+                  const found = clients.find((c) => c.name.toLowerCase() === maybeClientName.toLowerCase());
+                  setValues((v) => ({
+                    ...v,
+                    clientType: found ? "select" : "custom",
+                    clientId: found ? found.id : undefined,
+                    clientName: found ? found.name : (draft?.client?.name ?? v.clientName),
+                    clientEmail: found ? (found.email ?? "") : (draft?.client?.email ?? v.clientEmail),
+                    clientAddress: found ? (found.address ?? "") : (draft?.client?.address ?? v.clientAddress),
+                    invoiceDate: draft?.invoiceDate ? String(draft.invoiceDate).slice(0,10) : v.invoiceDate,
+                    dueDate: draft?.dueDate ? String(draft.dueDate).slice(0,10) : v.dueDate,
+                    paymentTerms: draft?.paymentTerms ?? v.paymentTerms,
+                    legalMentions: draft?.legalMentions ?? v.legalMentions,
+                    items,
+                  }));
+                  toast.success("Formulaire pré-rempli par l'IA");
+                } catch (e: any) {
+                  setAiLoading(false);
+                  toast.error(e?.message ?? "Erreur IA");
+                }
+              }}>{aiLoading ? "Génération..." : "Pré-remplir avec l'IA"}</Button>
             </div>
           </div>
         </Card>
