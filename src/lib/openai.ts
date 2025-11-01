@@ -8,6 +8,50 @@ const aiCache = globalForCache.__aiCache ?? (globalForCache.__aiCache = new Map<
 
 export const anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
 
+// Model priority with optional env override (CLAUDE_MODEL can be comma-separated)
+function getClaudeModels(): string[] {
+  const override = process.env.CLAUDE_MODEL?.trim();
+  if (override) {
+    const list = override.split(",").map((m) => m.trim()).filter(Boolean);
+    if (list.length) return list;
+  }
+  return [
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-haiku-latest",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-haiku-20240307",
+    "claude-3-opus-20240229",
+  ];
+}
+
+async function callClaudeWithFallback(params: { system?: string; user: string }, opts?: { maxTokens?: number; temperature?: number }): Promise<string> {
+  const models = getClaudeModels();
+  let lastErr: any = null;
+  for (const model of models) {
+    try {
+      const res = await anthropic.messages.create({
+        model,
+        system: params.system,
+        max_tokens: opts?.maxTokens ?? 400,
+        temperature: opts?.temperature ?? 0.2,
+        messages: [{ role: "user", content: params.user }],
+      });
+      const text = (res as any)?.content?.[0]?.text;
+      if (typeof text === "string" && text.trim()) return text.trim();
+    } catch (e: any) {
+      lastErr = e;
+      const code = e?.status ?? e?.code;
+      const msg: string = e?.message ?? "";
+      // If model not found/accessible, try next
+      if (code === 404 || /not.?found/i.test(msg) || (/model/i.test(msg) && /not/i.test(msg))) continue;
+      break;
+    }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error("Claude empty response");
+}
+
 export async function enhanceDescription(description: string, profession?: string): Promise<string> {
   const key = `${description.trim()}__${profession?.trim() ?? ""}`;
   const now = Date.now();
@@ -17,19 +61,7 @@ export async function enhanceDescription(description: string, profession?: strin
   const prompt = `Tu es un expert en rédaction de factures professionnelles.\n\nTransforme cette description courte en description détaillée et professionnelle pour une facture :\n"${description}"\n\nContexte : ${profession ?? "auto-entrepreneur"}\n\nRègles :\n- 2-3 phrases maximum\n- Vocabulaire professionnel\n- Mentionner la valeur ajoutée\n- Pas de prix ni de dates`;
 
   try {
-    const res = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-latest",
-      max_tokens: 200,
-      temperature: 0.3,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
-
-    const text = (res.content?.[0] as any)?.text?.trim?.() ?? "";
+    const text = await callClaudeWithFallback({ user: prompt }, { maxTokens: 200, temperature: 0.3 });
     const value = text || description;
     aiCache.set(key, { value, expiresAt: now + CACHE_TTL_MS });
     return value;
@@ -63,17 +95,7 @@ Règles:
 - vatRate ∈ {0,10,20} (arrondis si besoin)
 - Si date absente, laisse vide
 - Déduis les items avec des descriptions claires et professionnelles en français.`;
-
-  const msg = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-latest",
-    max_tokens: 800,
-    temperature: 0.2,
-    messages: [
-      { role: "user", content: `${system}\n\nBrief utilisateur:\n${prompt}` },
-    ],
-  });
-
-  const text = (msg.content?.[0] as any)?.text ?? "{}";
+  const text = await callClaudeWithFallback({ system, user: `Brief utilisateur:\n${prompt}` }, { maxTokens: 800, temperature: 0.2 }).catch(() => "{}");
   try {
     const raw = JSON.parse(text);
     const sanitizeNumber = (n: any): number => {
