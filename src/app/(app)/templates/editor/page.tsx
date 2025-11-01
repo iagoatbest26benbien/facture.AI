@@ -10,7 +10,10 @@ import type { InvoiceFormValues, InvoiceTemplateJSON } from "@/types";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 
-const InvoicePreviewClient = dynamic(() => import("@/components/pdf/InvoicePreviewClient"), { ssr: false });
+const InvoicePreviewClient = dynamic<{ data: InvoiceFormValues; template?: InvoiceTemplateJSON }>(
+  () => import("@/components/pdf/InvoicePreviewClient"),
+  { ssr: false }
+);
 
 const sampleData: InvoiceFormValues = {
   issuerType: "profile",
